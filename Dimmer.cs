@@ -10,7 +10,9 @@ using Microsoft.Win32;
 
 static class Program
 {
-    const int MinLevel = 10, MaxLevel = 100, Step = 10;
+    const int MinLevel = 5, MaxLevel = 100;
+    // Steps are finer at the dark end, where a 10% change looks like a much bigger jump.
+    static readonly int[] Levels = { 100, 90, 80, 70, 60, 50, 40, 30, 25, 20, 15, 10, 5 };
     const string AppName = "Dimmer";
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
 
@@ -50,8 +52,9 @@ static class Program
                 return;
             }
 
-            settingsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.txt");
+            settingsPath = FindSettingsPath();
             LoadSettings();
+            RefreshAutostartPath();
             CreateHiddenWindow();
             taskbarCreated = RegisterWindowMessageW("TaskbarCreated");
             WTSRegisterSessionNotification(hwnd, 0);
@@ -107,7 +110,46 @@ static class Program
         SetLevel(level < 100 ? 100 : lastDim);
     }
 
+    // The next level in Levels, darker (direction < 0) or brighter. Works from levels not in the list too.
+    static int NextLevel(int direction)
+    {
+        if (direction < 0)
+        {
+            foreach (int value in Levels)
+                if (value < level) return value;
+            return MinLevel;
+        }
+        for (int i = Levels.Length - 1; i >= 0; i--)
+            if (Levels[i] > level) return Levels[i];
+        return MaxLevel;
+    }
+
     // --- Settings --------------------------------------------------------------------------------
+
+    // Next to the exe when that folder is writable, so Dimmer stays portable. Otherwise, such as in
+    // Program Files, in the user's AppData folder.
+    static string FindSettingsPath()
+    {
+        string local = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.txt");
+        if (CanWrite(local)) return local;
+
+        string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppName);
+        try { Directory.CreateDirectory(folder); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+        return Path.Combine(folder, "settings.txt");
+    }
+
+    static bool CanWrite(string path)
+    {
+        try
+        {
+            using (new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite)) { }
+            return true;
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+    }
 
     static void LoadSettings()
     {
@@ -115,7 +157,7 @@ static class Program
         {
             string[] parts = File.ReadAllText(settingsPath).Split(' ');
             level = Math.Max(MinLevel, Math.Min(MaxLevel, int.Parse(parts[0])));
-            lastDim = Math.Max(MinLevel, Math.Min(MaxLevel - Step, int.Parse(parts[1])));
+            lastDim = Math.Max(MinLevel, Math.Min(MaxLevel - 1, int.Parse(parts[1])));
         }
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
@@ -143,11 +185,33 @@ static class Program
             using (RegistryKey key = Registry.CurrentUser.CreateSubKey(RunKey))
             {
                 if (value)
-                    key.SetValue(AppName, "\"" + System.Reflection.Assembly.GetEntryAssembly().Location + "\"");
+                    key.SetValue(AppName, AutostartCommand);
                 else
                     key.DeleteValue(AppName, false);
             }
         }
+    }
+
+    static string AutostartCommand
+    {
+        get { return "\"" + System.Reflection.Assembly.GetEntryAssembly().Location + "\""; }
+    }
+
+    // If Start with Windows is on but points somewhere else, the exe was moved: point it here instead.
+    static void RefreshAutostartPath()
+    {
+        try
+        {
+            using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RunKey, true))
+            {
+                if (key == null) return;
+                string saved = key.GetValue(AppName) as string;
+                if (saved != null && !string.Equals(saved, AutostartCommand, StringComparison.OrdinalIgnoreCase))
+                    key.SetValue(AppName, AutostartCommand);
+            }
+        }
+        catch (System.Security.SecurityException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     // --- Window and messages ---------------------------------------------------------------------
@@ -174,8 +238,8 @@ static class Program
 
             case WM_HOTKEY:
                 int id = wParam.ToInt32();
-                if (id == HotkeyBrighter) SetLevel(level + Step);
-                else if (id == HotkeyDarker) SetLevel(level - Step);
+                if (id == HotkeyBrighter) SetLevel(NextLevel(1));
+                else if (id == HotkeyDarker) SetLevel(NextLevel(-1));
                 else if (id == HotkeyToggle) Toggle();
                 return IntPtr.Zero;
 
@@ -222,7 +286,7 @@ static class Program
         AppendMenuW(menu, level >= MaxLevel ? MF_GRAYED : MF_STRING, (IntPtr)CmdBrighter, "Brighter\tCtrl+Alt+PgUp");
         AppendMenuW(menu, level <= MinLevel ? MF_GRAYED : MF_STRING, (IntPtr)CmdDarker, "Darker\tCtrl+Alt+PgDn");
         AppendMenuW(menu, MF_SEPARATOR, IntPtr.Zero, null);
-        for (int value = MaxLevel; value >= MinLevel; value -= Step)
+        foreach (int value in Levels)
         {
             string label = value == 100 ? "100% (off)\tCtrl+Alt+Home" : value + "%";
             AppendMenuW(menu, value == level ? MF_CHECKED : MF_STRING, (IntPtr)(CmdLevelBase + value), label);
@@ -240,8 +304,8 @@ static class Program
         DestroyMenu(menu);
 
         if (cmd >= CmdLevelBase) SetLevel(cmd - CmdLevelBase);
-        else if (cmd == CmdBrighter) SetLevel(level + Step);
-        else if (cmd == CmdDarker) SetLevel(level - Step);
+        else if (cmd == CmdBrighter) SetLevel(NextLevel(1));
+        else if (cmd == CmdDarker) SetLevel(NextLevel(-1));
         else if (cmd == CmdAutostart) Autostart = !Autostart;
         else if (cmd == CmdExit) DestroyWindow(hwnd);
 

@@ -6,7 +6,7 @@ Dimmer is a tiny Windows tray app for late nights and dark rooms, when your scre
 its minimum and it's still too bright. It darkens the picture on top of your hardware brightness, so the two add
 up. It works on laptop screens and desktop monitors alike.
 
-- **Tiny:** a single 13 KB exe with nothing to install.
+- **Tiny:** a single 14 KB exe with nothing to install.
 - **Light on your PC:** it uses no CPU while idle and about 3 MB of RAM.
 - **Safe:** if it closes or crashes, your screen goes straight back to normal.
 - **Out of the way:** it lives in the tray, and hotkeys let you change the level without opening anything.
@@ -14,7 +14,7 @@ up. It works on laptop screens and desktop monitors alike.
 ## Download
 
 1. Download `Dimmer.exe` from the [latest release](https://github.com/dapss/Dimmer/releases/latest).
-2. Put it in any folder you can write to, such as `Documents\Dimmer`, and run it.
+2. Put it in any folder, such as `Documents\Dimmer`, and run it.
 
 Requires 64-bit Windows 10 or 11.
 
@@ -32,7 +32,7 @@ see it, click the `^` arrow on the taskbar and drag the icon onto the taskbar to
 | Turn dimming on or off | Left-click the icon, or press `Ctrl+Alt+Home` |
 | Make the screen darker | Press `Ctrl+Alt+PgDn` |
 | Make the screen brighter | Press `Ctrl+Alt+PgUp` |
-| Pick a level (100% to 10%) | Right-click the icon |
+| Pick a level (100% to 5%) | Right-click the icon |
 | Start Dimmer when you sign in | Right-click the icon and choose **Start with Windows** |
 | Quit | Right-click the icon and choose **Exit** |
 
@@ -40,9 +40,11 @@ see it, click the `^` arrow on the taskbar and drag the icon onto the taskbar to
 further. On a laptop that's the Windows brightness slider; on a desktop monitor it's usually the buttons or
 on-screen menu on the monitor itself.
 
-If you go too dark to see anything, press `Ctrl+Alt+Home` to turn dimming off.
+Levels go down in 10% steps to 30%, then in 5% steps to 5%, because small changes are easier to see at the dark
+end. If you go too dark to see anything, press `Ctrl+Alt+Home` to turn dimming off.
 
-Dimmer remembers your level and restores it the next time it starts.
+Dimmer remembers your level and restores it the next time it starts. If you move the exe to another folder,
+**Start with Windows** follows it the next time you run it.
 
 ## How it works
 
@@ -90,8 +92,12 @@ This produces `Dimmer.exe` in the same folder. All of the code is in [`Dimmer.cs
 2. Choose **Exit**.
 3. Delete the folder containing `Dimmer.exe`.
 
-Dimmer only writes two things: `settings.txt` next to the exe, and the **Start with Windows** entry under
-`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, which step 1 removes.
+Dimmer only writes two things:
+
+- `settings.txt`, next to the exe. If that folder is read-only, such as `Program Files`, it goes in
+  `%APPDATA%\Dimmer` instead, so delete that folder too if it exists.
+- The **Start with Windows** entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, which step 1
+  removes.
 
 ## License
 
