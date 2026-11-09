@@ -1,10 +1,10 @@
 # Dimmer
 
-**Make your screen darker than your laptop's lowest brightness setting.**
+**Make your screen darker than its lowest brightness setting.**
 
-Dimmer is a tiny Windows tray app for late nights and dark rooms, when the brightness slider is already at
-zero and the screen is still too bright. It darkens the picture on top of your hardware brightness, so the two
-add up.
+Dimmer is a tiny Windows tray app for late nights and dark rooms, when your screen's brightness is already at
+its minimum and it's still too bright. It darkens the picture on top of your hardware brightness, so the two add
+up. It works on laptop screens and desktop monitors alike.
 
 - **Tiny:** a single 13 KB exe with nothing to install.
 - **Light on your PC:** it uses no CPU while idle and about 3 MB of RAM.
@@ -36,8 +36,9 @@ see it, click the `^` arrow on the taskbar and drag the icon onto the taskbar to
 | Start Dimmer when you sign in | Right-click the icon and choose **Start with Windows** |
 | Quit | Right-click the icon and choose **Exit** |
 
-**Tip:** for the darkest result, set the Windows brightness slider to its minimum first, then use Dimmer to go
-further.
+**Tip:** for the darkest result, turn your screen's own brightness to its minimum first, then use Dimmer to go
+further. On a laptop that's the Windows brightness slider; on a desktop monitor it's usually the buttons or
+on-screen menu on the monitor itself.
 
 If you go too dark to see anything, press `Ctrl+Alt+Home` to turn dimming off.
 
@@ -57,8 +58,8 @@ It needs no admin rights and makes no lasting changes to your system.
 
 ## Limitations
 
-- **No battery savings:** Dimmer darkens the picture but can't lower the backlight further, so it uses the
-  same power as before.
+- **No power savings:** Dimmer darkens the picture but can't lower your screen's hardware brightness further,
+  so the screen uses the same power as before.
 - **Some things stay bright:**
   - The mouse cursor, which Windows usually draws after the filter.
   - Administrator (UAC) prompts, which appear on a separate secure desktop.

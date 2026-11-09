@@ -1,4 +1,4 @@
-// Tray app that dims the screen below the panel's minimum backlight.
+// Tray app that dims the screen below its lowest hardware brightness.
 // Uses the Windows fullscreen colour effect instead of an overlay window, and raw Win32 instead of
 // WinForms to stay small. It is entirely message-driven: no timers, no polling.
 // Build: build.bat (uses the C# compiler that ships with Windows).
