@@ -15,13 +15,14 @@ static class Program
     static readonly int[] Levels = { 100, 90, 80, 70, 60, 50, 40, 30, 25, 20, 15, 10, 5 };
     const string AppName = "Dimmer";
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    const string ApprovedKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
 
     const uint WM_DESTROY = 0x0002, WM_DISPLAYCHANGE = 0x007E, WM_NULL = 0x0000, WM_POWERBROADCAST = 0x0218,
         WM_WTSSESSION_CHANGE = 0x02B1, WM_HOTKEY = 0x0312, WM_LBUTTONUP = 0x0202, WM_RBUTTONUP = 0x0205,
         WM_TRAY = 0x8001;
     const int PBT_APMRESUMESUSPEND = 0x07, PBT_APMRESUMEAUTOMATIC = 0x12;
     const int WTS_SESSION_LOGON = 0x5, WTS_SESSION_UNLOCK = 0x8;
-    const uint MOD_ALT = 1, MOD_CONTROL = 2, VK_PRIOR = 0x21, VK_NEXT = 0x22, VK_HOME = 0x24;
+    const uint MOD_ALT = 1, MOD_CONTROL = 2, MOD_NOREPEAT = 0x4000, VK_PRIOR = 0x21, VK_NEXT = 0x22, VK_HOME = 0x24;
     const int HotkeyBrighter = 1, HotkeyDarker = 2, HotkeyToggle = 3;
     const uint NIM_ADD = 0, NIM_MODIFY = 1, NIM_DELETE = 2, NIF_MESSAGE = 1, NIF_ICON = 2, NIF_TIP = 4, NIF_INFO = 0x10;
     const uint MF_STRING = 0, MF_GRAYED = 1, MF_CHECKED = 8, MF_SEPARATOR = 0x800;
@@ -92,6 +93,14 @@ static class Program
     static void Apply()
     {
         applyFailed = !SetEffect(level);
+    }
+
+    // For when Windows may have dropped the effect. The tooltip reports failure, so it follows any change.
+    static void Reapply()
+    {
+        bool failedBefore = applyFailed;
+        Apply();
+        if (applyFailed != failedBefore) UpdateTrayIcon();
     }
 
     static void SetLevel(int value)
@@ -177,18 +186,40 @@ static class Program
     {
         get
         {
-            using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RunKey))
-                return key != null && key.GetValue(AppName) != null;
+            try
+            {
+                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RunKey))
+                    if (key == null || key.GetValue(AppName) == null) return false;
+                // Task Manager's Startup tab disables an entry by setting an odd first byte here,
+                // leaving the Run value in place.
+                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(ApprovedKey))
+                {
+                    byte[] state = key == null ? null : key.GetValue(AppName) as byte[];
+                    return state == null || state.Length == 0 || (state[0] & 1) == 0;
+                }
+            }
+            catch (System.Security.SecurityException) { return false; }
+            catch (UnauthorizedAccessException) { return false; }
+            catch (IOException) { return false; }
         }
         set
         {
-            using (RegistryKey key = Registry.CurrentUser.CreateSubKey(RunKey))
+            try
             {
-                if (value)
-                    key.SetValue(AppName, AutostartCommand);
-                else
-                    key.DeleteValue(AppName, false);
+                using (RegistryKey key = Registry.CurrentUser.CreateSubKey(RunKey))
+                {
+                    if (value)
+                        key.SetValue(AppName, AutostartCommand);
+                    else
+                        key.DeleteValue(AppName, false);
+                }
+                // Drop Task Manager's mark too, so turning it on here really turns it on.
+                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(ApprovedKey, true))
+                    if (key != null) key.DeleteValue(AppName, false);
             }
+            catch (System.Security.SecurityException) { ShowBalloon("Could not change Start with Windows."); }
+            catch (UnauthorizedAccessException) { ShowBalloon("Could not change Start with Windows."); }
+            catch (IOException) { ShowBalloon("Could not change Start with Windows."); }
         }
     }
 
@@ -245,15 +276,15 @@ static class Program
 
             // Windows can drop the effect across these, so it is reapplied when they happen.
             case WM_DISPLAYCHANGE:
-                Apply();
+                Reapply();
                 break;
             case WM_POWERBROADCAST:
                 int power = wParam.ToInt32();
-                if (power == PBT_APMRESUMESUSPEND || power == PBT_APMRESUMEAUTOMATIC) Apply();
+                if (power == PBT_APMRESUMESUSPEND || power == PBT_APMRESUMEAUTOMATIC) Reapply();
                 break;
             case WM_WTSSESSION_CHANGE:
                 int session = wParam.ToInt32();
-                if (session == WTS_SESSION_UNLOCK || session == WTS_SESSION_LOGON) Apply();
+                if (session == WTS_SESSION_UNLOCK || session == WTS_SESSION_LOGON) Reapply();
                 break;
 
             case WM_DESTROY:
@@ -272,10 +303,13 @@ static class Program
 
     static void RegisterHotkeys()
     {
-        bool ok = RegisterHotKey(hwnd, HotkeyBrighter, MOD_CONTROL | MOD_ALT, VK_PRIOR);
-        ok &= RegisterHotKey(hwnd, HotkeyDarker, MOD_CONTROL | MOD_ALT, VK_NEXT);
-        ok &= RegisterHotKey(hwnd, HotkeyToggle, MOD_CONTROL | MOD_ALT, VK_HOME);
-        if (!ok) ShowBalloon("Another app is using a Dimmer hotkey. Use the tray icon for that action.");
+        string taken = "";
+        if (!RegisterHotKey(hwnd, HotkeyBrighter, MOD_CONTROL | MOD_ALT, VK_PRIOR)) taken += ", Ctrl+Alt+PgUp";
+        if (!RegisterHotKey(hwnd, HotkeyDarker, MOD_CONTROL | MOD_ALT, VK_NEXT)) taken += ", Ctrl+Alt+PgDn";
+        // Brighter and darker repeat while held. The toggle must not, or holding it flickers the screen.
+        if (!RegisterHotKey(hwnd, HotkeyToggle, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_HOME)) taken += ", Ctrl+Alt+Home";
+        if (taken != "")
+            ShowBalloon("Another app is already using " + taken.Substring(2) + ". Use the tray icon instead.");
     }
 
     // --- Tray menu -------------------------------------------------------------------------------

@@ -6,7 +6,7 @@ Dimmer is a tiny Windows tray app for late nights and dark rooms, when your scre
 its minimum and it's still too bright. It darkens the picture on top of your hardware brightness, so the two add
 up. It works on laptop screens and desktop monitors alike.
 
-- **Tiny:** a single 14 KB exe with nothing to install.
+- **Tiny:** a single 15 KB exe with nothing to install.
 - **Light on your PC:** it uses no CPU while idle and about 3 MB of RAM.
 - **Safe:** if it closes or crashes, your screen goes straight back to normal.
 - **Out of the way:** it lives in the tray, and hotkeys let you change the level without opening anything.
